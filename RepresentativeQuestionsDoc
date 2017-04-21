@@ -1,0 +1,424 @@
+--------------------------------------------
+Part2 - Representative questions and answers
+--------------------------------------------
+
+1) Question - How do you design an application with JMS messaging?
+   --------------------------------------------------------------
+Answer:  (Took API reference from docs.oracle.com)
+   
+The following are the basic steps required to design the application with JMS messaging:
+
+1) For the application to send and receive the messages, we need to set up the JMS messaging for the application.
+2) Create the Connection Factory and Destinations from the console of the Application server and give relevant names to them. 
+3) Look up the JMS Connection Factory in JNDI.
+4) Create a connection using the connection Factory.
+5) Create a session using the Connection.
+6) Look up the destinations (Queue or Topic) in JNDI.
+7) Create Message Producers and Message Consumers using Session and Destinations.    
+8) For Message Producer, create a message object and send it to the destination.
+9) For message Consumers, optionally register with Asynchronous Message Listener to receive messages.
+10) Acknowledge the received message.
+11) Release the resources.
+
+Example application with JMS Queue:
+----------------------------------
+
+1) Create connection factory named "myQueueConnectionFactory"  
+   (Go to Resources-->JMS Resource->Connection Factories-->New (to create from the console of the application server)
+2) Create destination resource named "myQueue"
+   (Go to Resources-->JMS Resource->Destination Resources-->New (to create from the console of the application server)
+3) Create  Sender and Receiver applications.
+
+Sender Application:
+------------------
+  
+import java.io.BufferedReader;  
+import java.io.InputStreamReader;  
+import javax.naming.*;  
+import javax.jms.*;  
+  
+public class Sender {  
+    public static void main(String[] args) {  
+        try  
+        {   //Create and start connection  
+            InitialContext ctx=new InitialContext();  
+            QueueConnectionFactory f=(QueueConnectionFactory)ctx.lookup("myQueueConnectionFactory");  
+            QueueConnection con=f.createQueueConnection();  
+            con.start();  
+            
+            //2) create queue session  
+            QueueSession ses=con.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+              
+            //3) get the Queue object  
+            Queue t=(Queue)ctx.lookup("myQueue");
+              
+            //4)create QueueSender object         
+            QueueSender sender=ses.createSender(t);
+              
+            //5) create TextMessage object  
+            TextMessage msg=ses.createTextMessage();  
+              
+            //6) write message  
+             msg.setText("First Message on the Queue");  
+                
+             //7) send message  
+                  sender.send(msg);  
+                  System.out.println("Message successfully sent.");  
+            }  
+            
+             //8) connection close  
+                  con.close();  
+        }catch(Exception e){System.out.println(e);}  
+    }  
+}  
+File: MyReceiver.java
+import javax.jms.*;  
+import javax.naming.InitialContext;  
+  
+public class MyReceiver {  
+    public static void main(String[] args) {  
+        try{  
+            //1) Create and start connection  
+            InitialContext ctx=new InitialContext();  
+            QueueConnectionFactory f=(QueueConnectionFactory)ctx.lookup("myQueueConnectionFactory");  
+            QueueConnection con=f.createQueueConnection();  
+            con.start();
+              
+            //2) create Queue session  
+            QueueSession ses=con.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+              
+            //3) get the Queue object  
+            Queue t=(Queue)ctx.lookup("myQueue");
+              
+            //4)create QueueReceiver  
+            QueueReceiver receiver=ses.createReceiver(t);  
+              
+            //5) create listener object  
+            MyListener listener=new MyListener();  
+              
+            //6) register the listener object with receiver  
+            receiver.setMessageListener(listener);  
+              
+            System.out.println("Receiver1 is ready, waiting for messages...");  
+            System.out.println("press Ctrl+c to shutdown...");  
+            while(true){                  
+                Thread.sleep(1000);  
+            }  
+        }catch(Exception e){System.out.println(e);}  
+    }  
+  
+}  
+File: MyListener.java
+import javax.jms.*;  
+public class MyListener implements MessageListener {  
+  
+    public void onMessage(Message m) {  
+        try{  
+        TextMessage msg=(TextMessage)m;  
+      
+        System.out.println("following message is received:"+msg.getText());  
+        }catch(JMSException e){System.out.println(e);}  
+    }  
+}  
+
+----------------------------------------------------------------------------------   
+2) Question - How do you handle exception in JMS consumers and how do you recover?
+----------------------------------------------------------------------------------
+
+Answer:
+------ 
+1) Exceptions in the JMS consumers can be handled by acknowledging the received messages.
+2) To recover from the exception, we can use recover() method on the queueSession (i.e queueSession.recover()) 
+   which will stop the message delivery in the current session, marks all the messages that have been delivered but not acknowledged as "Redelivered",
+   and restart the delivery sequence including all unacknowledged messages that had been previously delivered.
+   
+   Example scenario:
+   ----------------
+   Consider a JMS consumer which receives a message and updates the database with that message.
+   
+   Exception case: If we have read the message in the queue and then the data base operation fails, the message is lost.
+   
+   Exception handling: In this case above, after receiving a message, update the database. 
+                       If the database operation is successful, then acknowledge the message using message.acknowledge();
+                       Without acknowledge the message will be re-delivered.Then after restarting the server, the message listener can see the message again.
+                       Use queueSession.recover() to restart the delivery of the message programatically  as explained above.
+
+
+------------------------------------------------------
+3) Question - How do you implement LRU or MRU cache?
+------------------------------------------------------
+
+Answer:
+-------
+LRU cache is implemented using a doubly linked list and a hash map.
+Doubly Linked List is used to store list of pages with most recently used page at the start of the list.
+So, as more pages are added to the list, least recently used pages are moved to the end of the list with page at tail being the least recently used page in the list.
+Hash Map (key: page number, value: page) is used for O(1) access to pages in cache
+
+When a page is accessed, there can be 2 cases:
+1. Page is present in the cache - If the page is already present in the cache, we move the page to the start of the list.
+2. Page is not present in the cache - If the page is not present in the cache, we add the page to the list. 
+How to add a page to the list:
+   a. If the cache is not full, add the new page to the start of the list.
+   b. If the cache is full, remove the last node of the linked list and move the new page to the start of the list.   
+
+
+Example LRU implementation:
+--------------------------
+import java.util.HashMap;
+import java.util.Map;
+ 
+public class LRUCache {
+     
+    private DoublyLinkedList pageList;
+    private Map<Integer, Node> pageMap;
+    private final int cacheSize;
+     
+    public LRUCache(int cacheSize) {
+        this.cacheSize = cacheSize;
+        pageList = new DoublyLinkedList(cacheSize);
+        pageMap = new HashMap<Integer, Node>();
+    }
+     
+    public void accessPage(int pageNumber) {
+        Node pageNode = null;
+        if(pageMap.containsKey(pageNumber)) {
+            // If page is present in the cache, move the page to the start of list
+            pageNode = pageMap.get(pageNumber);
+            pageList.movePageToHead(pageNode);
+        } else {
+            // If the page is not present in the cache, add the page to the cache
+            if(pageList.getCurrSize() == pageList.getSize()) {
+                // If cache is full, we will remove the tail from the cache pageList
+                // Remove it from map too
+                pageMap.remove(pageList.getTail().getPageNumber());
+            }
+            pageNode = pageList.addPageToList(pageNumber);
+            pageMap.put(pageNumber, pageNode);
+        }
+    }
+     
+    public void printCacheState() {
+        pageList.printList();
+        System.out.println();
+    }
+ 
+    public static void main(String[] args) {
+        int cacheSize = 4;
+        LRUCache cache = new LRUCache(cacheSize);
+        cache.accessPage(4);
+        cache.printCacheState();
+        cache.accessPage(2);
+        cache.printCacheState();
+        cache.accessPage(1);
+        cache.printCacheState();
+        cache.accessPage(1);
+        cache.printCacheState();
+        cache.accessPage(4);
+        cache.printCacheState();
+        cache.accessPage(3);
+        cache.printCacheState();
+        cache.accessPage(7);
+        cache.printCacheState();
+        cache.accessPage(8);
+        cache.printCacheState();
+        cache.accessPage(3);
+        cache.printCacheState();
+    }
+}
+ 
+class DoublyLinkedList {
+     
+    private final int size;
+    private int currSize;
+    private Node head;
+    private Node tail;
+ 
+    public DoublyLinkedList(int size) {
+        this.size = size;
+        currSize = 0;
+    }
+ 
+    public Node getTail() {
+        return tail;
+    }
+ 
+    public void printList() {
+        if(head == null) {
+            return;
+        }
+        Node tmp = head;
+        while(tmp != null) {
+            System.out.print(tmp);
+            tmp = tmp.getNext();
+        }
+    }
+ 
+    public Node addPageToList(int pageNumber) {
+        Node pageNode = new Node(pageNumber);       
+        if(head == null) {
+            head = pageNode;
+            tail = pageNode; 
+            currSize = 1;
+            return pageNode;
+        } else if(currSize < size) {
+            currSize++;
+        } else {
+            tail = tail.getPrev();
+            tail.setNext(null);
+        }
+        pageNode.setNext(head);
+        head.setPrev(pageNode);
+        head = pageNode;
+        return pageNode;
+    }
+ 
+    public void movePageToHead(Node pageNode) {
+        if(pageNode == null || pageNode == head) {
+            return;
+        }
+ 
+        if(pageNode == tail) {
+            tail = tail.getPrev();
+            tail.setNext(null);
+        }
+         
+        Node prev = pageNode.getPrev();
+        Node next = pageNode.getNext();
+        prev.setNext(next);
+ 
+        if(next != null) {
+            next.setPrev(prev);
+        }
+ 
+        pageNode.setPrev(null);
+        pageNode.setNext(head);
+        head.setPrev(pageNode);
+        head = pageNode;    
+    }
+ 
+    public int getCurrSize() {
+        return currSize;
+    }
+ 
+    public void setCurrSize(int currSize) {
+        this.currSize = currSize;
+    }
+ 
+    public Node getHead() {
+        return head;
+    }
+ 
+    public void setHead(Node head) {
+        this.head = head;
+    }
+ 
+    public int getSize() {
+        return size;
+    }   
+}
+ 
+class Node {
+     
+    private int pageNumber;
+    private Node prev;
+    private Node next;
+     
+    public Node(int pageNumber) {
+        this.pageNumber = pageNumber;
+    }
+ 
+    public int getPageNumber() {
+        return pageNumber;
+    }
+ 
+    public void setPageNumber(int data) {
+        this.pageNumber = data;
+    }
+     
+    public Node getPrev() {
+        return prev;
+    }
+ 
+    public void setPrev(Node prev) {
+        this.prev = prev;
+    }
+ 
+    public Node getNext() {
+        return next;
+    }
+ 
+    public void setNext(Node next) {
+        this.next = next;
+    }
+     
+    public String toString() {
+        return pageNumber + "  ";
+    }
+}      
+
+
+---------------------------------------------------------------------------------------------
+4) Question - How would you implement Executor Service?
+-------------------------------------------------------------------------------------------
+Answer:
+-------
+
+-----------------------------------------------------------------------------
+5) Question - - Describe singleton design pattern – how would you implement?
+---------------------------------------------------------------------------
+
+Answer:
+-------
+Singleton pattern restricts the instantiation of a class and ensures that only one instance of the class exists in the JVM. 
+The singleton class must provide a method to get the instance of the class.
+
+Follow the below steps to implement Singleton pattern:
+1) Private constructor to restrict instantiation of the class from other classes.
+2) Private static variable of the same class that is the only instance of the class.
+3) Public static method that returns the instance of the class
+
+Example for Singleton class:
+---------------------------
+
+public class SingleObject {
+
+   //create an object of SingleObject
+   private static SingleObject instance = new SingleObject();
+
+   //make the constructor private so that this class cannot be
+   //instantiated
+   private SingleObject(){}
+
+   //Get the only object available
+   public static SingleObject getInstance(){
+      return instance;
+   }
+
+   public void showMessage(){
+      System.out.println("Singleton Class!");
+   }
+}
+
+-----------------------------------------------------------------------------------
+6) Question - Describe properties of Java String.
+-----------------------------------------------------------------------------
+Answer:
+-------
+1) Java String is a sequence of characters.
+2) Java String is an object from java.lang package.
+3) String can be created by assigning the String literal with the String variable.
+    eg: String s  = "Hello";
+4) String can also be created using the new String("ABC") (i.e with the String constructor)
+    eg: String a = new String("ABC");
+5) The '+' operator is overloaded to concatenate two String operands.
+    eg: String a = b + c;  (where b and c are also Strings)
+6) String is immutable. That is, its content cannot be modified once it is created. 
+   For example, the method toUpperCase() constructs and returns a new String instead of modifying the its existing content.
+7) String literals are stored in a common pool. This facilitates sharing of storage for strings with the same contents to conserve storage. 
+   String objects allocated via new operator are stored in the heap, and there is no sharing of storage for the same contents   
+8) Use the method equals() of the String class to compare the contents of two Strings. 
+   Use the relational equality operator '==' to compare the references of two String objects.        
+
+
+-------------------------------------------------------------------------------------
