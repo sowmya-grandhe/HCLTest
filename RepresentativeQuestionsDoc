@@ -1,10 +1,10 @@
 --------------------------------------------
-Part2 - Representative questions and answers
+Part2 - Representative questions and answers 
 --------------------------------------------
 
 1) Question - How do you design an application with JMS messaging?
    --------------------------------------------------------------
-Answer:  (Took API reference from docs.oracle.com)
+Answer: 
    
 The following are the basic steps required to design the application with JMS messaging:
 
@@ -71,7 +71,10 @@ public class Sender {
         }catch(Exception e){System.out.println(e);}  
     }  
 }  
-File: MyReceiver.java
+
+Receiver Application:
+---------------------
+
 import javax.jms.*;  
 import javax.naming.InitialContext;  
   
@@ -108,7 +111,10 @@ public class MyReceiver {
     }  
   
 }  
-File: MyListener.java
+
+Listener class:
+--------------
+
 import javax.jms.*;  
 public class MyListener implements MessageListener {  
   
@@ -150,12 +156,12 @@ Answer:
 
 Answer:
 -------
-LRU cache is implemented using a doubly linked list and a hash map.
-Doubly Linked List is used to store list of pages with most recently used page at the start of the list.
-So, as more pages are added to the list, least recently used pages are moved to the end of the list with page at tail being the least recently used page in the list.
-Hash Map (key: page number, value: page) is used for O(1) access to pages in cache
+LRU cache can be implemented using a doubly linked list and a hash map.
+Doubly Linked List is used to store list of objects with most recently used object at the start of the list.
+So, as more objects are added to the list, least recently used objects are moved to the end of the list with object at tail being the least recently used one in the list.
+Hash Map (key: object_id, value: object) is used for O(1) access to objects in cache
 
-When a page is accessed, there can be 2 cases:
+Consider an example when a page is accessed, there can be 2 cases:
 1. Page is present in the cache - If the page is already present in the cache, we move the page to the start of the list.
 2. Page is not present in the cache - If the page is not present in the cache, we add the page to the list. 
 How to add a page to the list:
@@ -163,8 +169,8 @@ How to add a page to the list:
    b. If the cache is full, remove the last node of the linked list and move the new page to the start of the list.   
 
 
-Example LRU implementation:
---------------------------
+Example LRU implementation for accessing pages:  (Assume that we already have implementations for classes DoudlyLinkedList and Node)
+----------------------------------------------
 import java.util.HashMap;
 import java.util.Map;
  
@@ -226,136 +232,6 @@ public class LRUCache {
         cache.printCacheState();
     }
 }
- 
-class DoublyLinkedList {
-     
-    private final int size;
-    private int currSize;
-    private Node head;
-    private Node tail;
- 
-    public DoublyLinkedList(int size) {
-        this.size = size;
-        currSize = 0;
-    }
- 
-    public Node getTail() {
-        return tail;
-    }
- 
-    public void printList() {
-        if(head == null) {
-            return;
-        }
-        Node tmp = head;
-        while(tmp != null) {
-            System.out.print(tmp);
-            tmp = tmp.getNext();
-        }
-    }
- 
-    public Node addPageToList(int pageNumber) {
-        Node pageNode = new Node(pageNumber);       
-        if(head == null) {
-            head = pageNode;
-            tail = pageNode; 
-            currSize = 1;
-            return pageNode;
-        } else if(currSize < size) {
-            currSize++;
-        } else {
-            tail = tail.getPrev();
-            tail.setNext(null);
-        }
-        pageNode.setNext(head);
-        head.setPrev(pageNode);
-        head = pageNode;
-        return pageNode;
-    }
- 
-    public void movePageToHead(Node pageNode) {
-        if(pageNode == null || pageNode == head) {
-            return;
-        }
- 
-        if(pageNode == tail) {
-            tail = tail.getPrev();
-            tail.setNext(null);
-        }
-         
-        Node prev = pageNode.getPrev();
-        Node next = pageNode.getNext();
-        prev.setNext(next);
- 
-        if(next != null) {
-            next.setPrev(prev);
-        }
- 
-        pageNode.setPrev(null);
-        pageNode.setNext(head);
-        head.setPrev(pageNode);
-        head = pageNode;    
-    }
- 
-    public int getCurrSize() {
-        return currSize;
-    }
- 
-    public void setCurrSize(int currSize) {
-        this.currSize = currSize;
-    }
- 
-    public Node getHead() {
-        return head;
-    }
- 
-    public void setHead(Node head) {
-        this.head = head;
-    }
- 
-    public int getSize() {
-        return size;
-    }   
-}
- 
-class Node {
-     
-    private int pageNumber;
-    private Node prev;
-    private Node next;
-     
-    public Node(int pageNumber) {
-        this.pageNumber = pageNumber;
-    }
- 
-    public int getPageNumber() {
-        return pageNumber;
-    }
- 
-    public void setPageNumber(int data) {
-        this.pageNumber = data;
-    }
-     
-    public Node getPrev() {
-        return prev;
-    }
- 
-    public void setPrev(Node prev) {
-        this.prev = prev;
-    }
- 
-    public Node getNext() {
-        return next;
-    }
- 
-    public void setNext(Node next) {
-        this.next = next;
-    }
-     
-    public String toString() {
-        return pageNumber + "  ";
-    }
-}      
 
 
 ---------------------------------------------------------------------------------------------
@@ -363,6 +239,39 @@ class Node {
 -------------------------------------------------------------------------------------------
 Answer:
 -------
+The java.util.concurrent.ExecutorService interface represents an asynchronous execution mechanism which 
+is capable of executing tasks in the background. An ExecutorService is thus very similar to a thread pool. 
+In fact, the implementation of ExecutorService present in the java.util.concurrent package is a thread pool implementation.
+
+Executor or ExecutorService instances with predefined behavior can be obtained by calling one of the factory
+methods in the Executors class like:
+
+ExecutorService es = Executors.newFixedThreadPool(100);.
+
+After obtaining ExecutorService,  submit a task in the form of a Runnable or Callable or a collection of Callable 
+instances to the ExecutorService using one of the execute, submit, invokeAny, or invokeAll methods. 
+An ExecutorService can be held onto during the entire life of your application if needed, but once it is no
+longer needed, it should be terminated using the shutdown and shutdownNow methods.
+
+Example for Executor Service implementation:
+--------------------------------------------
+
+// This creates ExecutorService using newFixedThreadPool() factory method.
+// This creates a thread pool with 10 threads executing tasks.
+ExecutorService executorService = Executors.newFixedThreadPool(10);    
+
+//anonymous implementation of the Runnable interface is passed to the execute() method. 
+//This causes the Runnable to be executed by one of the threads in the ExecutorService.
+executorService.execute(new Runnable() {
+    public void run() {
+        System.out.println("Asynchronous task");
+    }
+});
+
+//The ExecutorService will not shut down immediately, but it will no longer accept new tasks
+//Once all threads have finished current tasks, the ExecutorService shuts down.
+executorService.shutdown();
+
 
 -----------------------------------------------------------------------------
 5) Question - - Describe singleton design pattern – how would you implement?
@@ -384,7 +293,7 @@ Example for Singleton class:
 public class SingleObject {
 
    //create an object of SingleObject
-   private static SingleObject instance = new SingleObject();
+   private static SingleObject instance = null;
 
    //make the constructor private so that this class cannot be
    //instantiated
@@ -392,6 +301,9 @@ public class SingleObject {
 
    //Get the only object available
    public static SingleObject getInstance(){
+      if(instance == null)
+         instance = new SingleObject();
+         
       return instance;
    }
 
@@ -399,6 +311,17 @@ public class SingleObject {
       System.out.println("Singleton Class!");
    }
 }
+
+Usage of the Singleton class:
+----------------------------
+public class UseSingleton {
+  public static void main(String[] args) {      
+        SingleObject obj = SingleObject.getInstance();
+        
+        obj.showMessage();      
+    }
+}
+
 
 -----------------------------------------------------------------------------------
 6) Question - Describe properties of Java String.
